@@ -17,9 +17,9 @@
 #define BFLOAT2(value) (reinterpret_cast<__nv_bfloat162*>(&(value))[0])
 #define LDST128BITS(value) (reinterpret_cast<float4*>(&(value))[0])
 
-// -------------------------------------- FP32 -------------------------------------- 
+// -------------------------------------- FP32 --------------------------------------
 // DS required for Online Softmax
-struct __align__(8) MD { float m; float d; }; 
+struct __align__(8) MD { float m; float d; };
 // Warp Reduce for Online Softmax
 template<const int kWarpSize = WARP_SIZE >
 __device__ __forceinline__ MD warp_reduce_md_op(MD value) {
@@ -33,7 +33,7 @@ __device__ __forceinline__ MD warp_reduce_md_op(MD value) {
     bool value_bigger = (value.m > other.m);
     MD bigger_m = value_bigger ? value : other;
     MD smaller_m = value_bigger ? other : value;
-    
+
     value.d = bigger_m.d + smaller_m.d * __expf(smaller_m.m - bigger_m.m);
     value.m = bigger_m.m;
   }
@@ -68,12 +68,12 @@ __device__ float block_reduce_sum_f32(float val) {
   int warp = threadIdx.x / WARP_SIZE;
   int lane = threadIdx.x % WARP_SIZE;
   static __shared__ float shared[NUM_WARPS];
-  
+
   float value = warp_reduce_sum_f32<WARP_SIZE>(val);
   if (lane == 0) shared[warp] = value;
   __syncthreads();
   value = (lane < NUM_WARPS) ? shared[lane] : 0.0f;
-  value = warp_reduce_sum_f32<NUM_WARPS>(value);  
+  value = warp_reduce_sum_f32<NUM_WARPS>(value);
   // WRAN: need to broadcast value to all threads within warp
   value = __shfl_sync(0xffffffff, value, 0, 32);
   return value;
@@ -86,7 +86,7 @@ __device__ float block_reduce_max_f32(float val) {
   int warp = threadIdx.x / WARP_SIZE;
   int lane = threadIdx.x % WARP_SIZE;
   static __shared__ float shared[NUM_WARPS];
-  
+
   float value = warp_reduce_max_f32<WARP_SIZE>(val);
   if (lane == 0) shared[warp] = value;
   __syncthreads();
@@ -101,19 +101,19 @@ __device__ float block_reduce_max_f32(float val) {
 // grid(N/256), block(K=256)
 template<const int NUM_THREADS = 256>
 __global__ void softmax_f32_kernel(float* x, float* y, float* total, int N) {
-  
+
   const int tid = threadIdx.x;
-  const int idx = blockIdx.x * blockDim.x + tid; 
-  
+  const int idx = blockIdx.x * blockDim.x + tid;
+
   float exp_val = (idx < N) ? expf(x[idx]) : 0.0f;
   float exp_sum = block_reduce_sum_f32<NUM_THREADS>(exp_val);
   // get the total sum of all blocks.
   if (tid == 0) atomicAdd(total, exp_sum);
   __threadfence(); // grid level memory fence
-  // e^x_i/sum(e^x_0,...,e^x_n-1) 
-  // printf("N: %d, idx: %d, bid: %d, tid: %d, exp_val: %f, exp_sum: %f, total: %f\n", 
+  // e^x_i/sum(e^x_0,...,e^x_n-1)
+  // printf("N: %d, idx: %d, bid: %d, tid: %d, exp_val: %f, exp_sum: %f, total: %f\n",
   //         N,     idx, blockIdx.x,  tid,     exp_val,     exp_sum,     *total);
-  if (idx < N) y[idx] = exp_val / (*total); 
+  if (idx < N) y[idx] = exp_val / (*total);
 }
 
 // Softmax Vec4 x: N, y: N
@@ -121,8 +121,8 @@ __global__ void softmax_f32_kernel(float* x, float* y, float* total, int N) {
 template<const int NUM_THREADS = 256/4>
 __global__ void softmax_f32x4_kernel(float* x, float* y, float* total, int N) {
   const int tid = threadIdx.x;
-  const int idx = (blockIdx.x * blockDim.x + tid) * 4; 
-  
+  const int idx = (blockIdx.x * blockDim.x + tid) * 4;
+
   float4 reg_x = FLOAT4(x[idx]);
   float4 reg_exp;
   reg_exp.x = (idx + 0 < N) ? expf(reg_x.x) : 0.0f;
@@ -134,14 +134,14 @@ __global__ void softmax_f32x4_kernel(float* x, float* y, float* total, int N) {
   // get the total sum of all blocks.
   if (tid == 0) atomicAdd(total, exp_sum);
   __threadfence(); // grid level memory fence
-  // e^x_i/sum(e^x_0,...,e^x_n-1) 
+  // e^x_i/sum(e^x_0,...,e^x_n-1)
   if (idx + 3 < N) {
     float4 reg_y;
     reg_y.x = reg_exp.x / (*total);
     reg_y.y = reg_exp.y / (*total);
     reg_y.z = reg_exp.z / (*total);
     reg_y.w = reg_exp.w / (*total);
-    FLOAT4(y[idx]) = reg_y; 
+    FLOAT4(y[idx]) = reg_y;
   }
 }
 
@@ -153,12 +153,12 @@ __global__ void softmax_f32x4_kernel(float* x, float* y, float* total, int N) {
 template<const int NUM_THREADS = 256>
 __global__ void softmax_f32_per_token_kernel(float* x, float* y, int N) {
   const int tid = threadIdx.x;
-  const int idx = blockIdx.x * blockDim.x + tid; 
-  
+  const int idx = blockIdx.x * blockDim.x + tid;
+
   float exp_val = (idx < N) ? expf(x[idx]) : 0.0f;
   float exp_sum = block_reduce_sum_f32<NUM_THREADS>(exp_val); // block sum
-  // e^x_i/sum(e^x_0,...,e^x_n-1) 
-  // printf("N: %d, idx: %d, tid: %d, exp_val: %f, exp_sum: %f\n", 
+  // e^x_i/sum(e^x_0,...,e^x_n-1)
+  // printf("N: %d, idx: %d, tid: %d, exp_val: %f, exp_sum: %f\n",
   //         N, idx, tid, exp_val, exp_sum);
   if (idx < N) y[idx] = exp_val / exp_sum;
 }
@@ -177,14 +177,14 @@ __global__ void softmax_f32x4_per_token_kernel(float* x, float* y, int N) {
 
   float exp_val = (reg_exp.x + reg_exp.y + reg_exp.z + reg_exp.w);
   float exp_sum = block_reduce_sum_f32<NUM_THREADS>(exp_val); // block sum
-  // e^x_i/sum(e^x_0,...,e^x_n-1) 
+  // e^x_i/sum(e^x_0,...,e^x_n-1)
   if (idx + 3 < N) {
     float4 reg_y;
     reg_y.x = reg_exp.x / (exp_sum);
     reg_y.y = reg_exp.y / (exp_sum);
     reg_y.z = reg_exp.z / (exp_sum);
     reg_y.w = reg_exp.w / (exp_sum);
-    FLOAT4(y[idx]) = reg_y; 
+    FLOAT4(y[idx]) = reg_y;
   }
 }
 
@@ -192,14 +192,14 @@ __global__ void softmax_f32x4_per_token_kernel(float* x, float* y, int N) {
 template<const int NUM_THREADS = 256>
 __global__ void safe_softmax_f32_per_token_kernel(float* x, float* y, int N) {
   const int tid = threadIdx.x;
-  const int idx = blockIdx.x * blockDim.x + tid; 
-  
+  const int idx = blockIdx.x * blockDim.x + tid;
+
   float val = (idx < N) ? x[idx] : -FLT_MAX;
   float max_val = block_reduce_max_f32<NUM_THREADS>(val); // block max
   float exp_val = (idx < N) ? expf(x[idx] - max_val) : 0.0f;
   float exp_sum = block_reduce_sum_f32<NUM_THREADS>(exp_val); // block sum
-  // e^x_i/sum(e^x_0,...,e^x_n-1) 
-  if (idx < N) y[idx] = exp_val / exp_sum; 
+  // e^x_i/sum(e^x_0,...,e^x_n-1)
+  if (idx < N) y[idx] = exp_val / exp_sum;
 }
 
 template<const int NUM_THREADS = 256/4>
@@ -226,35 +226,35 @@ __global__ void safe_softmax_f32x4_per_token_kernel(float* x, float* y, int N) {
 
   float exp_val = (reg_exp.x + reg_exp.y + reg_exp.z + reg_exp.w);
   float exp_sum = block_reduce_sum_f32<NUM_THREADS>(exp_val); // block sum
-  // e^x_i/sum(e^x_0,...,e^x_n-1) 
+  // e^x_i/sum(e^x_0,...,e^x_n-1)
   if (idx + 3 < N) {
     float4 reg_y;
     reg_y.x = reg_exp.x / (exp_sum);
     reg_y.y = reg_exp.y / (exp_sum);
     reg_y.z = reg_exp.z / (exp_sum);
     reg_y.w = reg_exp.w / (exp_sum);
-    FLOAT4(y[idx]) = reg_y; 
+    FLOAT4(y[idx]) = reg_y;
   }
 }
 
 template<const int NUM_THREADS = 256>
 __global__ void safe_softmax_f16_f32_per_token_kernel(half* x, half* y, int N) {
   const int tid = threadIdx.x;
-  const int idx = blockIdx.x * blockDim.x + tid; 
-  
+  const int idx = blockIdx.x * blockDim.x + tid;
+
   float val = (idx < N) ? __half2float(x[idx]) : -FLT_MAX;
   float max_val = block_reduce_max_f32<NUM_THREADS>(val); // block max
   float exp_val = (idx < N) ? expf(val - max_val) : 0.0f;
   float exp_sum = block_reduce_sum_f32<NUM_THREADS>(exp_val); // block sum
-  // e^x_i/sum(e^x_0,...,e^x_n-1) 
-  if (idx < N) y[idx] = __float2half_rn(exp_val / exp_sum); 
+  // e^x_i/sum(e^x_0,...,e^x_n-1)
+  if (idx < N) y[idx] = __float2half_rn(exp_val / exp_sum);
 }
 
 template<const int NUM_THREADS = 256>
 __global__ void safe_softmax_f16x2_f32_per_token_kernel(half* x, half* y, int N) {
   const int tid = threadIdx.x;
-  const int idx = (blockIdx.x * blockDim.x + tid) * 2; 
-  
+  const int idx = (blockIdx.x * blockDim.x + tid) * 2;
+
   float2 reg_x = __half22float2(HALF2(x[idx]));
   float max_val = -FLT_MAX;
   max_val = ((idx + 0) < N) ? fmaxf(reg_x.x, max_val): -FLT_MAX;
@@ -272,19 +272,19 @@ __global__ void safe_softmax_f16x2_f32_per_token_kernel(half* x, half* y, int N)
   reg_y.x = reg_exp.x / (exp_sum);
   reg_y.y = reg_exp.y / (exp_sum);
 
-  // e^x_i/sum(e^x_0,...,e^x_n-1) 
-  if ((idx + 1) < N) HALF2(y[idx]) = __float22half2_rn(reg_y); 
+  // e^x_i/sum(e^x_0,...,e^x_n-1)
+  if ((idx + 1) < N) HALF2(y[idx]) = __float22half2_rn(reg_y);
 }
 
 template<const int NUM_THREADS = 256>
 __global__ void safe_softmax_f16x8_pack_f32_per_token_kernel(half* x, half* y, int N) {
   const int tid = threadIdx.x;
-  const int idx = (blockIdx.x * blockDim.x + tid) * 8; 
+  const int idx = (blockIdx.x * blockDim.x + tid) * 8;
   // temporary register(memory), .local space in ptx, addressable
   half pack_x[8], pack_y[8]; // 8x16 bits=128 bits.
   // reinterpret as float4 and load 128 bits in 1 memory issue.
   LDST128BITS(pack_x[0]) = LDST128BITS(x[idx]); // load 128 bits
-  
+
   float max_val = -FLT_MAX;
   #pragma unroll
   for (int i = 0; i < 8; ++i) {
@@ -302,7 +302,7 @@ __global__ void safe_softmax_f16x8_pack_f32_per_token_kernel(half* x, half* y, i
 
   #pragma unroll
   for (int i = 0; i < 8; ++i) {
-    // e^x_i/sum(e^x_0,...,e^x_n-1) 
+    // e^x_i/sum(e^x_0,...,e^x_n-1)
     float exp_val = expf(__half2float(pack_x[i]) - max_val);
     pack_y[i] = __float2half_rn(exp_val / exp_sum);
   }
@@ -323,17 +323,17 @@ __global__ void online_safe_softmax_f32_per_token_kernel(const float* x, float* 
   val.m = global_tid < N ? x[global_tid] : -FLT_MAX;
   val.d = global_tid < N ? 1.0f : 0.0f;
 
-  __shared__ MD shared[WAPR_NUM]; 
+  __shared__ MD shared[WAPR_NUM];
   MD res = warp_reduce_md_op<WARP_SIZE>(val);
 
-  if (lane_id == 0) shared[warp_id] = res; 
+  if (lane_id == 0) shared[warp_id] = res;
   __syncthreads();
 
   if (local_tid < WARP_SIZE) {
     MD block_res = shared[local_tid];
-    block_res = warp_reduce_md_op<WAPR_NUM>(block_res); 
+    block_res = warp_reduce_md_op<WAPR_NUM>(block_res);
     if (local_tid == 0) {
-      shared[0] = block_res; 
+      shared[0] = block_res;
     }
   }
   __syncthreads();
@@ -360,7 +360,7 @@ __global__ void online_safe_softmax_f32x4_pack_per_token_kernel(float *x, float 
     float local_m = fmaxf(fmaxf(val.x, val.y), fmaxf(val.z, val.w));
     float local_d = __expf(val.x - local_m) + __expf(val.y - local_m) + __expf(val.z - local_m) + __expf(val.w - local_m);
 
-    
+
     MD local_md = {local_m, local_d};
     MD res = warp_reduce_md_op<WARP_SIZE>(local_md);
     __shared__ MD shared[WAPR_NUM];
@@ -430,7 +430,7 @@ void softmax_##packed_type(torch::Tensor x, torch::Tensor y) {                  
 softmax_f32_per_token_kernel<(H)><<<grid, block>>>(  \
       reinterpret_cast<float*>(x.data_ptr()),        \
       reinterpret_cast<float*>(y.data_ptr()),        \
-      N);  
+      N);
 
 #define DISPATCH_SOFTMAX_F32_PER_TOKEN_KERNEL(S, H) \
   dim3 block((H));                                  \
@@ -459,14 +459,14 @@ softmax_f32_per_token_kernel<(H)><<<grid, block>>>(  \
     throw std::runtime_error(                       \
       "only support H: 64/128/256/512/1024");       \
     break;                                          \
-  } 
+  }
 
 #define LANUCH_SOFTMAX_F32x4_PER_TOKEN_KERNEL(H)  \
 softmax_f32x4_per_token_kernel<(H)/4><<<          \
       grid, block>>>(                             \
       reinterpret_cast<float*>(x.data_ptr()),     \
       reinterpret_cast<float*>(y.data_ptr()),     \
-      N);  
+      N);
 
 #define DISPATCH_SOFTMAX_F32x4_PER_TOKEN_KERNEL(S, H) \
   const int NT = (H)/4;                               \
@@ -502,14 +502,14 @@ softmax_f32x4_per_token_kernel<(H)/4><<<          \
     throw std::runtime_error(                         \
       "only support H: 64/128/.../1024*4");           \
     break;                                            \
-  } 
+  }
 
 // safe softmax per token
 #define LANUCH_SAFE_SOFTMAX_F32_PER_TOKEN_KERNEL(H)       \
 safe_softmax_f32_per_token_kernel<(H)><<<grid, block>>>(  \
       reinterpret_cast<float*>(x.data_ptr()),             \
       reinterpret_cast<float*>(y.data_ptr()),             \
-      N);  
+      N);
 
 #define DISPATCH_SATE_SOFTMAX_F32_PER_TOKEN_KERNEL(S, H) \
   dim3 block((H));                                       \
@@ -538,14 +538,14 @@ safe_softmax_f32_per_token_kernel<(H)><<<grid, block>>>(  \
     throw std::runtime_error(                            \
       "only support H: 64/128/256/512/1024");            \
     break;                                               \
-  } 
+  }
 
 // online softmax per token
 #define LANUCH_ONLINE_SOFTMAX_F32_PER_TOKEN_KERNEL(H)            \
 online_safe_softmax_f32_per_token_kernel<(H)><<<grid, block>>>(  \
       reinterpret_cast<float*>(x.data_ptr()),                    \
       reinterpret_cast<float*>(y.data_ptr()),                    \
-      N);  
+      N);
 
 #define DISPATCH_ONLINE_SOFTMAX_F32_PER_TOKEN_KERNEL(S, H) \
   dim3 block((H));                                       \
@@ -574,14 +574,14 @@ online_safe_softmax_f32_per_token_kernel<(H)><<<grid, block>>>(  \
     throw std::runtime_error(                            \
       "only support H: 64/128/256/512/1024");            \
     break;                                               \
-  } 
+  }
 
 // online softmax per token
 #define LANUCH_ONLINE_SOFTMAX_F32X4_PACK_PER_TOKEN_KERNEL(H)              \
 online_safe_softmax_f32x4_pack_per_token_kernel<(H/4)><<<grid, block>>>(  \
       reinterpret_cast<float*>(x.data_ptr()),                             \
       reinterpret_cast<float*>(y.data_ptr()),                             \
-      N);  
+      N);
 
 #define DISPATCH_ONLINE_SOFTMAX_F32X4_PACK_PER_TOKEN_KERNEL(S, H)                     \
   dim3 block((H/4));                                                                  \
@@ -610,14 +610,14 @@ online_safe_softmax_f32x4_pack_per_token_kernel<(H/4)><<<grid, block>>>(  \
     throw std::runtime_error(                                                         \
       "only support H: 128/256/.../4096;");                                           \
     break;                                                                            \
-  } 
+  }
 
 #define LANUCH_SAFE_SOFTMAX_F32x4_PER_TOKEN_KERNEL(H)   \
 safe_softmax_f32x4_per_token_kernel<(H)/4><<<           \
       grid, block>>>(                                   \
       reinterpret_cast<float*>(x.data_ptr()),           \
       reinterpret_cast<float*>(y.data_ptr()),           \
-      N);  
+      N);
 
 #define DISPATCH_SATE_SOFTMAX_F32x4_PER_TOKEN_KERNEL(S, H) \
   const int NT = (H)/4;                                    \
@@ -653,13 +653,13 @@ safe_softmax_f32x4_per_token_kernel<(H)/4><<<           \
     throw std::runtime_error(                              \
       "only support H: 64/128/.../1024*4");                \
     break;                                                 \
-  } 
+  }
 
 #define LANUCH_SAFE_SOFTMAX_F16_F32_PER_TOKEN_KERNEL(H)       \
 safe_softmax_f16_f32_per_token_kernel<(H)><<<grid, block>>>(  \
       reinterpret_cast<half*>(x.data_ptr()),                  \
       reinterpret_cast<half*>(y.data_ptr()),                  \
-      N);  
+      N);
 
 #define DISPATCH_SATE_SOFTMAX_F16_F32_PER_TOKEN_KERNEL(S, H) \
   dim3 block((H));                                           \
@@ -688,13 +688,13 @@ safe_softmax_f16_f32_per_token_kernel<(H)><<<grid, block>>>(  \
     throw std::runtime_error(                                \
       "only support H: 64/128/256/512/1024");                \
     break;                                                   \
-  } 
+  }
 
 #define LANUCH_SAFE_SOFTMAX_F16x2_F32_PER_TOKEN_KERNEL(H)        \
 safe_softmax_f16x2_f32_per_token_kernel<(H)/2><<<grid, block>>>( \
       reinterpret_cast<half*>(x.data_ptr()),                     \
       reinterpret_cast<half*>(y.data_ptr()),                     \
-      N);  
+      N);
 
 #define DISPATCH_SATE_SOFTMAX_F16x2_F32_PER_TOKEN_KERNEL(S, H) \
   const int NT = (H)/2;                                        \
@@ -727,13 +727,13 @@ safe_softmax_f16x2_f32_per_token_kernel<(H)/2><<<grid, block>>>( \
     throw std::runtime_error(                                  \
       "only support H: 64/128/.../1024*2");                    \
     break;                                                     \
-  } 
+  }
 
 #define LANUCH_SAFE_SOFTMAX_F16x8_PACK_F32_PER_TOKEN_KERNEL(H)        \
 safe_softmax_f16x8_pack_f32_per_token_kernel<(H)/8><<<grid, block>>>( \
       reinterpret_cast<half*>(x.data_ptr()),                          \
       reinterpret_cast<half*>(y.data_ptr()),                          \
-      N);  
+      N);
 
 #define DISPATCH_SATE_SOFTMAX_F16x8_PACK_F32_PER_TOKEN_KERNEL(S, H) \
   const int NT = (H)/8;                                             \
@@ -772,97 +772,97 @@ safe_softmax_f16x8_pack_f32_per_token_kernel<(H)/8><<<grid, block>>>( \
     throw std::runtime_error(                                       \
       "only support H: 64/128/.../1024*8");                         \
     break;                                                          \
-  } 
+  }
 
 // per token fp32
 void softmax_f32_per_token(torch::Tensor x, torch::Tensor y) {
-  CHECK_TORCH_TENSOR_DTYPE(x, torch::kFloat32)                       
+  CHECK_TORCH_TENSOR_DTYPE(x, torch::kFloat32)
   CHECK_TORCH_TENSOR_DTYPE(y, torch::kFloat32)
-  CHECK_TORCH_TENSOR_SHAPE(x, y)                   
-  const int S = x.size(0);  // seqlens  
+  CHECK_TORCH_TENSOR_SHAPE(x, y)
+  const int S = x.size(0);  // seqlens
   const int H = x.size(1);  // head size/kv_len
-  const int N = S * H; 
+  const int N = S * H;
   DISPATCH_SOFTMAX_F32_PER_TOKEN_KERNEL(S, H)
 }
 
 void softmax_f32x4_per_token(torch::Tensor x, torch::Tensor y) {
-  CHECK_TORCH_TENSOR_DTYPE(x, torch::kFloat32)                       
+  CHECK_TORCH_TENSOR_DTYPE(x, torch::kFloat32)
   CHECK_TORCH_TENSOR_DTYPE(y, torch::kFloat32)
-  CHECK_TORCH_TENSOR_SHAPE(x, y)                                                                                                            
-  const int S = x.size(0);  // seqlens  
+  CHECK_TORCH_TENSOR_SHAPE(x, y)
+  const int S = x.size(0);  // seqlens
   const int H = x.size(1);  // head size/kv_len
-  const int N = S * H; 
+  const int N = S * H;
   DISPATCH_SOFTMAX_F32x4_PER_TOKEN_KERNEL(S, H)
 }
 
 void safe_softmax_f32_per_token(torch::Tensor x, torch::Tensor y) {
-  CHECK_TORCH_TENSOR_DTYPE(x, torch::kFloat32)                       
+  CHECK_TORCH_TENSOR_DTYPE(x, torch::kFloat32)
   CHECK_TORCH_TENSOR_DTYPE(y, torch::kFloat32)
-  CHECK_TORCH_TENSOR_SHAPE(x, y)                                                                                                                              
-  const int S = x.size(0);  // seqlens  
+  CHECK_TORCH_TENSOR_SHAPE(x, y)
+  const int S = x.size(0);  // seqlens
   const int H = x.size(1);  // head size/kv_len
-  const int N = S * H; 
+  const int N = S * H;
   DISPATCH_SATE_SOFTMAX_F32_PER_TOKEN_KERNEL(S, H)
 }
 
 void safe_softmax_f32x4_per_token(torch::Tensor x, torch::Tensor y) {
-  CHECK_TORCH_TENSOR_DTYPE(x, torch::kFloat32)                       
+  CHECK_TORCH_TENSOR_DTYPE(x, torch::kFloat32)
   CHECK_TORCH_TENSOR_DTYPE(y, torch::kFloat32)
-  CHECK_TORCH_TENSOR_SHAPE(x, y)                                                                                                                      
-  const int S = x.size(0);  // seqlens  
+  CHECK_TORCH_TENSOR_SHAPE(x, y)
+  const int S = x.size(0);  // seqlens
   const int H = x.size(1);  // head size/kv_len
-  const int N = S * H; 
+  const int N = S * H;
   DISPATCH_SATE_SOFTMAX_F32x4_PER_TOKEN_KERNEL(S, H)
 }
 
 // per token fp16
 void safe_softmax_f16_f32_per_token(torch::Tensor x, torch::Tensor y) {
-  CHECK_TORCH_TENSOR_DTYPE(x, torch::kHalf)                       
+  CHECK_TORCH_TENSOR_DTYPE(x, torch::kHalf)
   CHECK_TORCH_TENSOR_DTYPE(y, torch::kHalf)
-  CHECK_TORCH_TENSOR_SHAPE(x, y)                                                                                                                              
-  const int S = x.size(0);  // seqlens  
+  CHECK_TORCH_TENSOR_SHAPE(x, y)
+  const int S = x.size(0);  // seqlens
   const int H = x.size(1);  // head size/kv_len
-  const int N = S * H; 
+  const int N = S * H;
   DISPATCH_SATE_SOFTMAX_F16_F32_PER_TOKEN_KERNEL(S, H)
 }
 
 void safe_softmax_f16x2_f32_per_token(torch::Tensor x, torch::Tensor y) {
-  CHECK_TORCH_TENSOR_DTYPE(x, torch::kHalf)                       
+  CHECK_TORCH_TENSOR_DTYPE(x, torch::kHalf)
   CHECK_TORCH_TENSOR_DTYPE(y, torch::kHalf)
-  CHECK_TORCH_TENSOR_SHAPE(x, y)                                                                                                                              
-  const int S = x.size(0);  // seqlens  
+  CHECK_TORCH_TENSOR_SHAPE(x, y)
+  const int S = x.size(0);  // seqlens
   const int H = x.size(1);  // head size/kv_len
-  const int N = S * H; 
+  const int N = S * H;
   DISPATCH_SATE_SOFTMAX_F16x2_F32_PER_TOKEN_KERNEL(S, H)
 }
 
 void safe_softmax_f16x8_pack_f32_per_token(torch::Tensor x, torch::Tensor y) {
-  CHECK_TORCH_TENSOR_DTYPE(x, torch::kHalf)                       
+  CHECK_TORCH_TENSOR_DTYPE(x, torch::kHalf)
   CHECK_TORCH_TENSOR_DTYPE(y, torch::kHalf)
-  CHECK_TORCH_TENSOR_SHAPE(x, y)                                                                                                                              
-  const int S = x.size(0);  // seqlens  
+  CHECK_TORCH_TENSOR_SHAPE(x, y)
+  const int S = x.size(0);  // seqlens
   const int H = x.size(1);  // head size/kv_len
-  const int N = S * H; 
+  const int N = S * H;
   DISPATCH_SATE_SOFTMAX_F16x8_PACK_F32_PER_TOKEN_KERNEL(S, H)
 }
 
 void online_safe_softmax_f32_per_token(torch::Tensor x, torch::Tensor y) {
-  CHECK_TORCH_TENSOR_DTYPE(x, torch::kFloat32)                       
+  CHECK_TORCH_TENSOR_DTYPE(x, torch::kFloat32)
   CHECK_TORCH_TENSOR_DTYPE(y, torch::kFloat32)
-  CHECK_TORCH_TENSOR_SHAPE(x, y)                                                                                                                              
-  const int S = x.size(0);  // seqlens  
+  CHECK_TORCH_TENSOR_SHAPE(x, y)
+  const int S = x.size(0);  // seqlens
   const int H = x.size(1);  // head size/kv_len
-  const int N = S * H; 
+  const int N = S * H;
   DISPATCH_ONLINE_SOFTMAX_F32_PER_TOKEN_KERNEL(S, H)
 }
 
 void online_safe_softmax_f32x4_pack_per_token(torch::Tensor x, torch::Tensor y) {
-  CHECK_TORCH_TENSOR_DTYPE(x, torch::kFloat32)                       
+  CHECK_TORCH_TENSOR_DTYPE(x, torch::kFloat32)
   CHECK_TORCH_TENSOR_DTYPE(y, torch::kFloat32)
-  CHECK_TORCH_TENSOR_SHAPE(x, y)                                                                                                                              
-  const int S = x.size(0);  
-  const int H = x.size(1); 
-  const int N = S * H; 
+  CHECK_TORCH_TENSOR_SHAPE(x, y)
+  const int S = x.size(0);
+  const int H = x.size(1);
+  const int N = S * H;
   DISPATCH_ONLINE_SOFTMAX_F32X4_PACK_PER_TOKEN_KERNEL(S, H)
 }
 
