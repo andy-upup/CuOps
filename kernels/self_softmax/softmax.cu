@@ -18,7 +18,6 @@
 #define BFLOAT2(value) (reinterpret_cast<__nv_bfloat162*>(&(value))[0])
 #define LDST128BITS(value) (reinterpret_cast<float4*>(&(value))[0])
 
-// Warp Reduce Sum
 template <const int kWarpSize = WARP_SIZE>
 __device__ __forceinline__ float warp_reduce_sum_f32(float val) {
 #pragma unroll
@@ -28,9 +27,8 @@ __device__ __forceinline__ float warp_reduce_sum_f32(float val) {
   return val;
 }
 
-// Warp Reduce Max
 template <const int kWarpSize = WARP_SIZE>
-__device__ __forceinline__ float warp_reduce_max_f32(float val) {
+__device__ float warp_reduce_max_f32(float val) {
 #pragma unroll
   for (int mask = kWarpSize >> 1; mask >= 1; mask >>= 1) {
     val = fmaxf(val, __shfl_xor_sync(0xffffffff, val, mask));
@@ -38,41 +36,40 @@ __device__ __forceinline__ float warp_reduce_max_f32(float val) {
   return val;
 }
 
-// grid 1D block 1D, grid(N/256), block(256)
-template <const int NUM_THREADS = 256>
-__device__ float block_reduce_sum_f32(float val) {
-  // always <= 32 warps per block (limited by 1024 threads per block)
-  constexpr int NUM_WARPS = (NUM_THREADS + WARP_SIZE - 1) / WARP_SIZE;
-  int warp = threadIdx.x / WARP_SIZE;
-  int lane = threadIdx.x % WARP_SIZE;
-  static __shared__ float shared[NUM_WARPS];
-
-  float value = warp_reduce_sum_f32<WARP_SIZE>(val);
-  if (lane == 0) shared[warp] = value;
+template <const int BLOCK_SIZE = 256>
+__device__ __forceinline__ float block_reduce_sum_f32(float val) {
+  const int idx = threadIdx.x;
+  const int warp = idx / WARP_SIZE;
+  const int lane = idx % WARP_SIZE;
+  constexpr int kNumWarp = (BLOCK_SIZE + WARP_SIZE - 1) / WARP_SIZE;
+  __shared__ float smem[kNumWarp];
+  float sum = warp_reduce_sum_f32<WARP_SIZE>(val);
+  if (lane == 0) {
+    smem[warp] = sum;
+  }
   __syncthreads();
-  value = (lane < NUM_WARPS) ? shared[lane] : 0.0f;
-  value = warp_reduce_sum_f32<NUM_WARPS>(value);
-  // WRAN: need to broadcast value to all threads within warp
-  value = __shfl_sync(0xffffffff, value, 0, 32);
-  return value;
+  val = lane < kNumWarp ? smem[lane] : 0.f;
+  sum = warp_reduce_sum_f32<kNumWarp>(val);
+  sum = __shfl_sync(0xffffffff, sum, 0, 32);
+  return sum;
 }
 
-template <const int NUM_THREADS = 256>
-__device__ float block_reduce_max_f32(float val) {
-  // always <= 32 warps per block (limited by 1024 threads per block)
-  constexpr int NUM_WARPS = (NUM_THREADS + WARP_SIZE - 1) / WARP_SIZE;
-  int warp = threadIdx.x / WARP_SIZE;
-  int lane = threadIdx.x % WARP_SIZE;
-  static __shared__ float shared[NUM_WARPS];
-
-  float value = warp_reduce_max_f32<WARP_SIZE>(val);
-  if (lane == 0) shared[warp] = value;
+template <const int BLOCK_SIZE = 256>
+__device__ __forceinline__ float block_reduce_max_f32(float val) {
+  const int idx = threadIdx.x;
+  const int warp = idx / WARP_SIZE;
+  const int lane = idx % WARP_SIZE;
+  constexpr int kNumWarp = (BLOCK_SIZE + WARP_SIZE - 1) / WARP_SIZE;
+  __shared__ float smem[kNumWarp];
+  float max_val = warp_reduce_max_f32<WARP_SIZE>(val);
+  if (lane == 0) {
+    smem[warp] = max_val;
+  }
   __syncthreads();
-  value = (lane < NUM_WARPS) ? shared[lane] : -FLT_MAX;
-  value = warp_reduce_max_f32<NUM_WARPS>(value);
-  // WRAN: need to broadcast value to all threads within warp
-  value = __shfl_sync(0xffffffff, value, 0, 32);
-  return value;
+  val = lane < kNumWarp ? smem[lane] : 0.f;
+  max_val = warp_reduce_max_f32<kNumWarp>(val);
+  max_val = __shfl_sync(0xffffffff, max_val, 0, 32);
+  return max_val;
 }
 
 // dim3 block(128);
@@ -99,18 +96,21 @@ __global__ void softmax_f32_naive_kernel(float* src, float* dst, const int N) {
       (expf(src[idy * NUM_THREADS + idx] - row_max) / row_sum);
 }
 
-// safe_softmax per token
-template <const int NUM_THREADS = 256>
-__global__ void safe_softmax_f32_per_token_kernel(float* x, float* y, int N) {
+// dim3 block(col);
+// dim3 grid(row);
+template <const int BLOCK_SIZE = 256>
+__global__ void safe_softmax_f32_per_token_kernel(float* input, float* output,
+                                                  const int N) {
   const int tid = threadIdx.x;
   const int idx = blockIdx.x * blockDim.x + tid;
 
-  float val = (idx < N) ? x[idx] : -FLT_MAX;
-  float max_val = block_reduce_max_f32<NUM_THREADS>(val);  // block max
-  float exp_val = (idx < N) ? expf(x[idx] - max_val) : 0.0f;
-  float exp_sum = block_reduce_sum_f32<NUM_THREADS>(exp_val);  // block sum
-  // e^x_i/sum(e^x_0,...,e^x_n-1)
-  if (idx < N) y[idx] = exp_val / exp_sum;
+  float val = (idx < N ? input[idx] : -FLT_MAX);
+  float max_val = block_reduce_max_f32<BLOCK_SIZE>(val);
+  float exp_val = (idx < N ? expf(input[idx] - max_val) : 0.f);
+  float sum = block_reduce_sum_f32<BLOCK_SIZE>(exp_val);
+  if (idx < N) {
+    output[idx] = exp_val / sum;
+  }
 }
 
 // --------------------- PyTorch bindings for custom kernel
@@ -220,6 +220,6 @@ void softmax_f32_naive(torch::Tensor x, torch::Tensor y) {
 }
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-  // TORCH_BINDING_COMMON_EXTENSION(safe_softmax_f32_per_token)
+  TORCH_BINDING_COMMON_EXTENSION(safe_softmax_f32_per_token)
   TORCH_BINDING_COMMON_EXTENSION(softmax_f32_naive)
 }

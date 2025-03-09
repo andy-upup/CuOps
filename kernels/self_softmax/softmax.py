@@ -64,6 +64,11 @@ S, H = 1024, 1024
 print(" " * 45 + f"S={S}, H={H}")
 print("-" * 100)
 x = torch.randn((S, H), device="cuda").cuda().float().contiguous()
-out = torch.zeros_like(x).cuda().float().contiguous()
-run_benchmark(lib.softmax_f32_naive,         x, "f32(safe)",        out)
-run_benchmark(partial(torch.softmax, dim=1, out=out), x, "f32_th(per)")
+out_naive = torch.zeros_like(x).cuda().float().contiguous()
+out_opt = torch.zeros_like(x).cuda().float().contiguous()
+
+run_benchmark(partial(torch.softmax, dim=1, out=out_naive), x, "f32_th(per)")
+run_benchmark(lib.safe_softmax_f32_per_token,         x, "f32(safe)",        out_opt)
+
+compare = torch.allclose(out_naive, out_opt, rtol=1e-5, atol=1e-5)
+print("compare: ", compare)
