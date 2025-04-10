@@ -18,6 +18,28 @@
 #define BFLOAT2(value) (reinterpret_cast<__nv_bfloat162*>(&(value))[0])
 #define LDST128BITS(value) (reinterpret_cast<float4*>(&(value))[0])
 
+struct __align__(8) MD {
+  float m;
+  float d;
+};
+
+template <const int kWarpSize = WARP_SIZE>
+__forceinline__ __device__ MD warp_reduce_md(MD value) {
+  for (int stride = kWarpSize >> 1; stride >= 1; stride >>= 1) {
+    MD other;
+    other.m = __shfl_xor_sync(0xffffffff, value.m, stride);
+    other.d = __shfl_xor_sync(0xffffffff, value.d, stride);
+
+    bool flag = other.m > value.m;
+    MD bigger_md = flag ? other : value;
+    MD smaller_md = flag ? value : other;
+
+    value.m = bigger_md.m;
+    value.d = bigger_md.d + smaller_md.d * __expf(smaller_md.m - bigger_md.m);
+  }
+  return value;
+}
+
 template <const int kWarpSize = WARP_SIZE>
 __device__ __forceinline__ float warp_reduce_sum_f32(float val) {
 #pragma unroll
@@ -110,6 +132,40 @@ __global__ void safe_softmax_f32_per_token_kernel(float* input, float* output,
   float sum = block_reduce_sum_f32<BLOCK_SIZE>(exp_val);
   if (idx < N) {
     output[idx] = exp_val / sum;
+  }
+}
+
+template <const int BLOCK_SIZE = 256>
+__global__ void online_safe_softmax_f32_per_token_kernel(float* input,
+                                                         float* output,
+                                                         const int N) {
+  const int tid = threadIdx.x;
+  const int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  const int warp = tid / WARP_SIZE;
+  const int lane = tid % WARP_SIZE;
+  MD value;
+  value.m = idx < N ? input[idx] : -FLT_MAX;
+  value.d = idx < N ? 1.f : 0.f;
+  const int kNumWarp = (BLOCK_SIZE + WARP_SIZE - 1) / WARP_SIZE;
+  __shared__ MD shared[kNumWarp];
+  MD warp_md = warp_reduce_md<WARP_SIZE>(value);
+  if (lane == 0) {
+    shared[warp] = warp_md;
+  }
+  __syncthreads();
+  if (lane < kNumWarp) {
+    MD block_md = shared[lane];
+    MD final_md = warp_reduce_md<kNumWarp>(block_md);
+    if (lane == 0) {
+      shared[0] = final_md;
+    }
+  }
+  __syncthreads();
+
+  MD res_md = shared[0];
+  float total_inverse_d = __fdividef(1.f, res_md.d);
+  if (idx < N) {
+    output[idx] = __expf(input[idx] - res_md.m) * total_inverse_d;
   }
 }
 
