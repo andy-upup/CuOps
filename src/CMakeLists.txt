@@ -1,0 +1,5 @@
+cmake_minimum_required(VERSION 3.20.0)
+project(cu_ops VERSION 0.1.0 LANGUAGES CUDA CXX C)
+
+find_package(CUDAToolkit)
+add_subdirectory(reduce)
