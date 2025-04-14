@@ -4,7 +4,61 @@
 
 #include <cstdio>
 
+#define THREAD_PER_BLOCK 256
+
+__global__ void reduce_v0(const float* src, float* dst) {
+  const int bx = blockIdx.x;
+  const int tx = threadIdx.x;
+}
+
+bool check(const float* output, const float* golden, const int N) {
+  for (int i = 0; i < N; ++i) {
+    if (std::abs(output[i] - golden[i]) >= 1e-5) {
+      return false;
+    }
+  }
+  return true;
+}
+
 int main() {
-  printf("Hello ReduceV0\n");
+  const int N = 32 * 1024 * 1024;
+  float* input = (float*)malloc(N * sizeof(float));
+  float* d_input;
+  cudaMalloc((void**)&d_input, N * sizeof(float));
+
+  const int num_block = N / THREAD_PER_BLOCK;
+  float* output = (float*)malloc(num_block * sizeof(float));
+  float* d_output;
+  cudaMalloc((void**)&d_output, num_block * sizeof(float));
+  float* golden = (float*)malloc(num_block * sizeof(float));
+
+  for (int i = 0; i < N; ++i) {
+    input[i] = 2.0 * (float)drand48() - 1.0;
+  }
+
+  for (int i = 0; i < num_block; ++i) {
+    float sum_block = 0.f;
+    for (int j = 0; j < THREAD_PER_BLOCK; ++j) {
+      sum_block += input[i * THREAD_PER_BLOCK + j];
+    }
+    golden[i] = sum_block;
+  }
+
+  cudaMemcpy(d_input, input, N * sizeof(float), cudaMemcpyHostToDevice);
+
+  dim3 grid(num_block);
+  dim3 block(THREAD_PER_BLOCK);
+
+  cudaMemcpy(output, d_output, num_block * sizeof(float),
+             cudaMemcpyDeviceToHost);
+  if (check(output, golden, num_block)) {
+    printf("Output is right.\n");
+  } else {
+    printf("Output is wrong!\n");
+    for (int i = 0; i < num_block; ++i) {
+      printf("%lf", output[i]);
+    }
+    printf("\n");
+  }
   return 0;
 }
