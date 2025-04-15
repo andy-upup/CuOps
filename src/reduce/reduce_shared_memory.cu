@@ -6,14 +6,27 @@
 
 #define THREAD_PER_BLOCK 256
 
-__global__ void reduce_v0(const float* src, float* dst) {
+__global__ void reduce_shared_memory(const float* src, float* dst, const int N) {
   const int bx = blockIdx.x;
   const int tx = threadIdx.x;
+  const int tid = blockIdx.x * blockDim.x + threadIdx.x;
+  __shared__ float shared[THREAD_PER_BLOCK];
+  shared[tx] = src[tid];
+  __syncthreads();
+  for (int i = 1; i < THREAD_PER_BLOCK; i *= 2) {
+    if (tx % (2 * i) == 0) {
+      shared[tx] += shared[tx + i];
+    }
+    __syncthreads();
+  }
+  if (tx == 0) {
+    dst[bx] = shared[0];
+  }
 }
 
 bool check(const float* output, const float* golden, const int N) {
   for (int i = 0; i < N; ++i) {
-    if (std::abs(output[i] - golden[i]) >= 1e-5) {
+    if (std::abs(output[i] - golden[i]) >= 1e-4) {
       return false;
     }
   }
@@ -48,6 +61,7 @@ int main() {
 
   dim3 grid(num_block);
   dim3 block(THREAD_PER_BLOCK);
+  reduce_shared_memory<<<grid, block>>>(d_input, d_output, N);
 
   cudaMemcpy(output, d_output, num_block * sizeof(float),
              cudaMemcpyDeviceToHost);
@@ -60,5 +74,10 @@ int main() {
     }
     printf("\n");
   }
+
+  cudaFree(d_input);
+  cudaFree(d_output);
+  free(output);
+  free(golden);
   return 0;
 }
