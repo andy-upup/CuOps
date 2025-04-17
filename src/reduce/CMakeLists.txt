@@ -15,3 +15,9 @@ target_link_libraries(reduce_bank_conflict PRIVATE CUDA::cudart ${CUDA_cublas_LI
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     target_compile_options(reduce_bank_conflict PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-G>)
 endif()
+
+add_executable(reduce_idle_thread reduce_idle_thread.cu)
+target_link_libraries(reduce_idle_thread PRIVATE CUDA::cudart ${CUDA_cublas_LIBRARY})
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    target_compile_options(reduce_idle_thread PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-G>)
+endif()
