@@ -1,0 +1,5 @@
+add_executable(transpose_naive transpose_naive.cu)
+target_link_libraries(transpose_naive PRIVATE CUDA::cudart ${CUDA_cublas_LIBRARY})
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    target_compile_options(transpose_naive PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-G>)
+endif()

@@ -3,3 +3,4 @@ project(cu_ops VERSION 0.1.0 LANGUAGES CUDA CXX C)
 
 find_package(CUDAToolkit)
 add_subdirectory(reduce)
+add_subdirectory(transpose)
