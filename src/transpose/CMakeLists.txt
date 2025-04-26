@@ -9,3 +9,9 @@ target_link_libraries(transpose_tile PRIVATE CUDA::cudart ${CUDA_cublas_LIBRARY}
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     target_compile_options(transpose_tile PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-G>)
 endif()
+
+add_executable(transpose_smem transpose_smem.cu)
+target_link_libraries(transpose_smem PRIVATE CUDA::cudart ${CUDA_cublas_LIBRARY})
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    target_compile_options(transpose_smem PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-G>)
+endif()
