@@ -1,9 +1,13 @@
 cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
-project(example-app)
+project(flash_attention)
 
 find_package(Torch REQUIRED)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 
-add_executable(example-app example-app.cpp)
-target_link_libraries(example-app "${TORCH_LIBRARIES}")
-set_property(TARGET example-app PROPERTY CXX_STANDARD 17)
+add_executable(flash_attention flash_attention.cpp flash_attention.cu)
+target_link_libraries(flash_attention "${TORCH_LIBRARIES}")
+set_property(TARGET flash_attention PROPERTY CXX_STANDARD 17)
+
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    target_compile_options(flash_attention PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-G>)
+endif()
