@@ -1,18 +1,73 @@
+#include <float.h>
 #include <torch/torch.h>
 
 #include <iostream>
 
 torch::Tensor forward(torch::Tensor Q, torch::Tensor K, torch::Tensor V);
+
+bool check(std::vector<float>& output, std::vector<float>& golden,
+           const int N) {
+  for (int i = 0; i < N; ++i) {
+    if (std::abs(output[i] - golden[i]) >= 1e-4) {
+      return false;
+    }
+  }
+  return true;
+}
+
+void safe_softmax_naive(const std::vector<float>& input,
+                        std::vector<float>& output) {
+  float max_val = *std::max_element(input.begin(), input.end());
+  float sum = 0.0f;
+
+  for (size_t i = 0; i < input.size(); ++i) {
+    output[i] = std::exp(input[i] - max_val);
+    sum += output[i];
+  }
+
+  for (size_t i = 0; i < output.size(); ++i) {
+    output[i] /= sum;
+  }
+}
+
+void safe_online_softmax(const std::vector<float>& input,
+                         std::vector<float>& output) {
+  float max_val = -FLT_MAX;
+  float last_max_val = 0.f;
+  float sum = 0.f;
+
+  for (size_t i = 0; i < input.size(); ++i) {
+    max_val = std::max(max_val, input[i]);
+    sum = sum * std::exp(last_max_val - max_val) + std::exp(input[i] - max_val);
+    last_max_val = max_val;
+  }
+
+  for (size_t i = 0; i < output.size(); ++i) {
+    output[i] = std::exp(input[i] - max_val) / sum;
+  }
+}
+
 int main() {
-  const int batch_size = 16;
-  const int n_head = 12;
-  const int seq_len = 64;
-  const int head_embd = 64;
+  // const int batch_size = 16;
+  // const int n_head = 12;
+  // const int seq_len = 64;
+  // const int head_embd = 64;
 
-  auto q = torch::randn({batch_size, n_head, seq_len, head_embd}).cuda();
-  auto k = torch::randn({batch_size, n_head, seq_len, head_embd}).cuda();
-  auto v = torch::randn({batch_size, n_head, seq_len, head_embd}).cuda();
+  // auto q = torch::randn({batch_size, n_head, seq_len, head_embd}).cuda();
+  // auto k = torch::randn({batch_size, n_head, seq_len, head_embd}).cuda();
+  // auto v = torch::randn({batch_size, n_head, seq_len, head_embd}).cuda();
 
-  forward(q, k, v);
+  // forward(q, k, v);
+
+  std::vector<float> input = {1.0f, 2.0f, 3.0f, 4.0f};
+  std::vector<float> output(input.size());
+  std::vector<float> golden(input.size());
+  safe_softmax_naive(input, golden);
+  safe_online_softmax(input, output);
+  if (check(output, golden, input.size())) {
+    std::cout << "safe_online_softmax passed!" << std::endl;
+  } else {
+    std::cout << "safe_online_softmax failed!" << std::endl;
+  }
   return 0;
 }
