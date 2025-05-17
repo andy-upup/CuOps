@@ -1,0 +1,64 @@
+#include <cuda.h>
+#include <cuda_runtime.h>
+#include <stdlib.h>
+
+#include <cstdio>
+
+#include "reduce.cuh"
+
+#define THREAD_PER_BLOCK 256
+
+bool check(const float* output, const float* golden, const int N) {
+  for (int i = 0; i < N; ++i) {
+    if (std::abs(output[i] - golden[i]) >= 1e-4) {
+      return false;
+    }
+  }
+  return true;
+}
+
+int main() {
+  const int N = 32 * 1024 * 1024;
+  float* input = (float*)malloc(N * sizeof(float));
+  float* d_input;
+  cudaMalloc((void**)&d_input, N * sizeof(float));
+
+  const int num_block = N / THREAD_PER_BLOCK;
+  float* output = (float*)malloc(num_block * sizeof(float));
+  float* d_output;
+  cudaMalloc((void**)&d_output, num_block * sizeof(float));
+  float* golden = (float*)malloc(num_block * sizeof(float));
+
+  for (int i = 0; i < N; ++i) {
+    input[i] = 2.0 * (float)drand48() - 1.0;
+  }
+
+  for (int i = 0; i < num_block; ++i) {
+    float sum_block = 0.f;
+    for (int j = 0; j < THREAD_PER_BLOCK; ++j) {
+      sum_block += input[i * THREAD_PER_BLOCK + j];
+    }
+    golden[i] = sum_block;
+  }
+
+  cudaMemcpy(d_input, input, N * sizeof(float), cudaMemcpyHostToDevice);
+  reduce::ReduceBankConflict(d_input, d_output, N);
+
+  cudaMemcpy(output, d_output, num_block * sizeof(float),
+             cudaMemcpyDeviceToHost);
+  if (check(output, golden, num_block)) {
+    printf("Output is right.\n");
+  } else {
+    printf("Output is wrong!\n");
+    for (int i = 0; i < num_block; ++i) {
+      printf("%lf", output[i]);
+    }
+    printf("\n");
+  }
+
+  cudaFree(d_input);
+  cudaFree(d_output);
+  free(output);
+  free(golden);
+  return 0;
+}
