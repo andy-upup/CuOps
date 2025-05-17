@@ -4,6 +4,7 @@
 
 #include <cstdio>
 
+namespace reduce {
 #define THREAD_PER_BLOCK 256
 
 __global__ void reduce_idle_thread(const float* src, float* dst, const int N) {
@@ -24,6 +25,14 @@ __global__ void reduce_idle_thread(const float* src, float* dst, const int N) {
   }
 }
 
+void ReduceIdleThread(const float* input_ptr, float* output_ptr,
+                      const int num) {
+  const int num_block = num / THREAD_PER_BLOCK;
+  dim3 grid(num_block);
+  dim3 block(THREAD_PER_BLOCK);
+  reduce_idle_thread<<<grid, block>>>(input_ptr, output_ptr, num);
+}
+}  // namespace reduce
 // bool check(const float* output, const float* golden, const int N) {
 //   for (int i = 0; i < N; ++i) {
 //     if (std::abs(output[i] - golden[i]) >= 1e-4) {

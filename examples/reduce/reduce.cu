@@ -42,7 +42,7 @@ int main() {
   }
 
   cudaMemcpy(d_input, input, N * sizeof(float), cudaMemcpyHostToDevice);
-  reduce::ReduceBankConflict(d_input, d_output, N);
+  reduce::ReduceWarpDivergence(d_input, d_output, N);
 
   cudaMemcpy(output, d_output, num_block * sizeof(float),
              cudaMemcpyDeviceToHost);
