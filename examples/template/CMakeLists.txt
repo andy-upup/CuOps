@@ -1,0 +1,1 @@
+cu_ops_example_add_executable(template template.cu)
