@@ -7,6 +7,7 @@
 #include <iostream>
 #include <string>
 
+#include "cnpy.h"
 #include "perf.hpp"
 #include "transpose.cuh"
 #include "utils.hpp"
@@ -114,6 +115,8 @@ TEST(Transpose, TransposeSmem) {
 }
 
 TEST(Transpose, TransposeTile) {
+  const std::string file_path = "./data/transpose_tile.npz";
+  cnpy::npz_t raw_data = cnpy::npz_load(file_path);
   constexpr int src_height = 2048;
   constexpr int src_width = 512;
   constexpr int num_iter = 5;

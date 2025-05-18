@@ -36,5 +36,3 @@ endif()
 if(CUDA_VERSION VERSION_LESS 9.2)
   message(FATAL_ERROR "CUDA 9.2+ required, found ${CUDA_VERSION}.")
 endif()
-
-include_directories(SYSTEM ${CUDA_INCLUDE_DIRS})
