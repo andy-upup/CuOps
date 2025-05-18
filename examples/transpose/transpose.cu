@@ -38,7 +38,7 @@ int main() {
   cudaMemcpy(d_input, input, num_data * sizeof(float), cudaMemcpyHostToDevice);
 
   for (int i = 0; i < num_iter; ++i) {
-    Perf perf("transpose_8x32");
+    perf::Perf perf("transpose_8x32");
     transpose::TransposeNaive(d_input, d_output, src_height, src_width);
     cudaDeviceSynchronize();
   }

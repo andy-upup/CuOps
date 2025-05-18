@@ -18,6 +18,7 @@ endif()
 
 enable_language(CUDA)
 find_package(CUDAToolkit REQUIRED)
+find_package(GTest REQUIRED)
 
 if(NOT CUDA_VERSION)
   # For backward compatibility with older CMake code.

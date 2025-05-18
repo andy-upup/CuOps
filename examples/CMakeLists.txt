@@ -8,7 +8,8 @@ function(cu_ops_example_add_executable NAME)
   target_link_libraries(
     ${NAME} PRIVATE $<$<BOOL:${CUTLASS_ENABLE_CUBLAS}>:nvidia::cublas> cuda
                     cu_ops)
-  target_link_libraries(${NAME} PRIVATE CUDA::cudart ${CUDA_cublas_LIBRARY})
+  target_link_libraries(${NAME} PRIVATE CUDA::cudart ${CUDA_cublas_LIBRARY}
+                                        GTest::gtest)
 
   target_compile_features(${NAME} PUBLIC cxx_std_14)
 

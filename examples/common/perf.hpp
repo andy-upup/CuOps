@@ -5,6 +5,7 @@
 #include <iostream>
 #include <string>
 
+namespace perf {
 class Perf {
  public:
   Perf(const std::string& name) {
@@ -28,5 +29,7 @@ class Perf {
   cudaEvent_t start_;
   cudaEvent_t end_;
 };
+
+}  // namespace perf
 
 #endif  // PERF_HPP_
