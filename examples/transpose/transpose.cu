@@ -6,16 +6,9 @@
 #include <iostream>
 #include <string>
 
+#include "perf.hpp"
 #include "transpose.cuh"
-
-bool check(const float* output, const float* golden, const int N) {
-  for (int i = 0; i < N; ++i) {
-    if (std::abs(output[i] - golden[i]) >= 1e-4) {
-      return false;
-    }
-  }
-  return true;
-}
+#include "utils.hpp"
 
 int main() {
   constexpr int src_height = 2048;
@@ -45,7 +38,7 @@ int main() {
   cudaMemcpy(d_input, input, num_data * sizeof(float), cudaMemcpyHostToDevice);
 
   for (int i = 0; i < num_iter; ++i) {
-    // Perf perf("transpose_8x32");
+    Perf perf("transpose_8x32");
     transpose::TransposeNaive(d_input, d_output, src_height, src_width);
     cudaDeviceSynchronize();
   }

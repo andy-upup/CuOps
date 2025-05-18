@@ -29,27 +29,3 @@ void TransposeNaive(float* input_ptr, float* output_ptr, const int src_height,
 }
 
 }  // namespace transpose
-
-// class Perf {
-//  public:
-//   Perf(const std::string& name) {
-//     name_ = name;
-//     cudaEventCreate(&start_);
-//     cudaEventCreate(&end_);
-//     cudaEventRecord(start_);
-//     cudaEventRecord(end_);
-//   }
-//   ~Perf() {
-//     cudaEventRecord(end_);
-//     cudaEventSynchronize(end_);
-//     float duration = 0.f;
-//     cudaEventElapsedTime(&duration, start_, end_);
-//     std::cout << name_ << " duration: " << duration * 1000 << " us"
-//               << std::endl;
-//   }
-
-//  private:
-//   std::string name_;
-//   cudaEvent_t start_;
-//   cudaEvent_t end_;
-// };

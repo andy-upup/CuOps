@@ -4,18 +4,11 @@
 
 #include <cstdio>
 
+#include "perf.hpp"
 #include "reduce.cuh"
+#include "utils.hpp"
 
 #define THREAD_PER_BLOCK 256
-
-bool check(const float* output, const float* golden, const int N) {
-  for (int i = 0; i < N; ++i) {
-    if (std::abs(output[i] - golden[i]) >= 1e-4) {
-      return false;
-    }
-  }
-  return true;
-}
 
 int main() {
   const int N = 32 * 1024 * 1024;
@@ -42,7 +35,10 @@ int main() {
   }
 
   cudaMemcpy(d_input, input, N * sizeof(float), cudaMemcpyHostToDevice);
-  reduce::ReduceWarpDivergence(d_input, d_output, N);
+  {
+    Perf perf("reduce_warp_divergence");
+    reduce::ReduceWarpDivergence(d_input, d_output, N);
+  }
 
   cudaMemcpy(output, d_output, num_block * sizeof(float),
              cudaMemcpyDeviceToHost);
