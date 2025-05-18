@@ -3,11 +3,12 @@ set(CU_OPS_EXAMPLES_COMMON_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/common)
 function(cu_ops_example_add_executable NAME)
   file(GLOB_RECURSE CU_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*.cu")
 
-  add_executable(${NAME} ${CU_FILES})
+  add_executable(${NAME} ${CU_FILES} ${ZLIB_LIBRARIES}
+                         ${CU_OPS_EXAMPLES_COMMON_SOURCE_DIR}/cnpy.cpp)
 
   target_link_libraries(
     ${NAME} PRIVATE $<$<BOOL:${CUTLASS_ENABLE_CUBLAS}>:nvidia::cublas> cuda
-                    cu_ops)
+                    cu_ops common)
   target_link_libraries(${NAME} PRIVATE CUDA::cudart ${CUDA_cublas_LIBRARY}
                                         GTest::gtest)
 
@@ -20,6 +21,8 @@ function(cu_ops_example_add_executable NAME)
     target_compile_options(${NAME} PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-G>)
   endif()
 endfunction()
+
+add_subdirectory(common)
 
 foreach(EXAMPLE template reduce transpose)
   add_subdirectory(${EXAMPLE})

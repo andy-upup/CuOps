@@ -6,6 +6,9 @@ set(CMAKE_CUDA_ARCHITECTURES
     89
     CACHE STRING "" FORCE)
 
+find_package(GTest REQUIRED)
+find_package(ZLIB REQUIRED)
+
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/CUDA.cmake)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 
