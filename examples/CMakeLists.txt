@@ -1,5 +1,3 @@
-# set(CU_OPS_EXAMPLES_COMMON_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/common)
-
 function(cu_ops_example_add_executable NAME)
   file(GLOB_RECURSE CU_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*.cu")
 

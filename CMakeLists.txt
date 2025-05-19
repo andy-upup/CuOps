@@ -14,7 +14,7 @@ set(IMPLICIT_CMAKE_CXX_STANDARD
 # To reduce duplicate version locations, parse the version out of the main
 # versions.h file and reuse it here.
 
-file(READ ${CMAKE_CURRENT_SOURCE_DIR}/third_party/cutlass/version.h
+file(READ ${CMAKE_CURRENT_SOURCE_DIR}/3rd_party/cutlass/version.h
      VERSION_FILE_CONTENTS)
 string(REGEX MATCH "#define CUTLASS_MAJOR ([0-9]+)" _CUTLASS_VERSION_MAJOR
              "${VERSION_FILE_CONTENTS}")
@@ -36,7 +36,7 @@ find_package(ZLIB REQUIRED)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/CUDA.cmake)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/3rd_party)
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
