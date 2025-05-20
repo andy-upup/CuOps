@@ -9,8 +9,6 @@ function(cu_ops_example_add_executable NAME)
   target_link_libraries(${NAME} PRIVATE CUDA::cudart ${CUDA_cublas_LIBRARY}
                                         GTest::gtest)
 
-  target_compile_features(${NAME} PUBLIC cxx_std_14)
-
   # target_include_directories(${NAME} PRIVATE
   # ${CU_OPS_EXAMPLES_COMMON_SOURCE_DIR})
 
