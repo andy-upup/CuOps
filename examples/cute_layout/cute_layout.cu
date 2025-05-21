@@ -1,10 +1,12 @@
 #include <cuda.h>
+#include <gtest/gtest.h>
 #include <stdlib.h>
 
 #include <cute/tensor.hpp>
 
 using namespace cute;
-int main() {
+
+TEST(Cute, Mma) {
   // mma
   using mma_op = SM80_16x8x16_F32F16F16F32_TN;
   using mma_traits = MMA_Traits<mma_op>;
@@ -25,4 +27,9 @@ int main() {
   auto thr_mma = MMA{}.get_thread_slice(0);
 
   print_latex(MMA{});
+}
+
+int main(int argc, char** argv) {
+  ::testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
 }
