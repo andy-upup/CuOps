@@ -17,6 +17,6 @@ function(cu_ops_example_add_executable NAME)
   endif()
 endfunction()
 
-foreach(EXAMPLE template reduce transpose cute_layout)
+foreach(EXAMPLE template reduce transpose cute)
   add_subdirectory(${EXAMPLE})
 endforeach()

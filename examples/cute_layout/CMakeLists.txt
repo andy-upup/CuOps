@@ -1,1 +1,0 @@
-cu_ops_example_add_executable(cute_layout cute_layout.cu)
