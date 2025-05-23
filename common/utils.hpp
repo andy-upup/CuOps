@@ -1,6 +1,13 @@
 #ifndef UTILS_HPP_
 #define UTILS_HPP_
+#include <cute/tensor.hpp>
 #include <iostream>
+
+#define PRINT(name, content) \
+  print(name);               \
+  print(" : ");              \
+  print(content);            \
+  print("\n");
 
 template <typename T>
 bool check(const T* output, const T* golden, const int size) {
