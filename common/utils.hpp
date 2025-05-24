@@ -9,6 +9,12 @@
   print(content);            \
   print("\n");
 
+#define PRINT_TENSOR(name, content) \
+  print(name);                      \
+  print(" : ");                     \
+  print_tensor(content);            \
+  print("\n");
+
 template <typename T>
 bool check(const T* output, const T* golden, const int size) {
   for (int i = 0; i < size; ++i) {
