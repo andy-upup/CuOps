@@ -8,6 +8,13 @@
 
 using namespace cute;
 
+/*
+  layout = shape + stride
+  逻辑空间 domain
+  物理空间 codomain
+  shape:   ((最里n层行数，n-1层行数， n-2层行数.... 最外层行数) ,
+  (最里n层列数，n-1层列数， n-2层列数.... 最外层列数))
+*/
 TEST(Cute, MakeLayout) {
   constexpr int M = 3;
   constexpr int N = 4;
@@ -28,6 +35,11 @@ TEST(Cute, MakeLayout) {
   auto stride12x4x1 = make_stride(Int<12>{}, Int<4>{}, Int<1>{});
   auto layout2x3x4_12x4x1 = make_layout(shape2x3x4, stride12x4x1);
   PRINT("layout2x3x4_12x4x1", layout2x3x4_12x4x1);
+
+  auto shape4x1 = make_shape(Int<4>{}, Int<1>{});
+  auto shape4x2 = make_shape(Int<4>{}, Int<2>{});
+  auto shape4x1_4x2 = make_shape(shape4x1, shape4x2);
+  PRINT("shape4x1_4x2", shape4x1_4x2);
 }
 
 int main(int argc, char** argv) {
