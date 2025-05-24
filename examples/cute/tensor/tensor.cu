@@ -60,6 +60,21 @@ TEST(Cute, HeapTensor) {
   auto tensor_partition = local_partition(
       tensor, make_layout(make_shape(2, 1), make_stride(1, 1)), idx);
   PRINT_TENSOR("tensor_partition", tensor_partition);
+
+  clear(tensor);
+  PRINT_TENSOR("cleared tensor", tensor);
+  fill(tensor, T(1.f));
+  PRINT_TENSOR("filled tensor", tensor);
+
+  // axpby: y = a * x + b * y
+  auto tensor_x = make_tensor_like(tensor);
+  auto tensor_y = make_tensor_like(tensor);
+  fill(tensor_x, T(1.f));
+  fill(tensor_y, T(1.f));
+  T a = T(2.f);
+  T b = T(3.f);
+  axpby(a, tensor_x, b, tensor_y);
+  PRINT_TENSOR("tensor_axpby", tensor_y);
   free(h_data_ptr);
 }
 
