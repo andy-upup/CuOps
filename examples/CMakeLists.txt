@@ -8,7 +8,8 @@ function(cu_ops_example_add_executable NAME)
                     cu_ops common)
   target_link_libraries(${NAME} PRIVATE CUDA::cudart ${CUDA_cublas_LIBRARY}
                                         GTest::gtest)
-
+  target_compile_options(
+    ${NAME} PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-diag-suppress=20013>)
   # target_include_directories(${NAME} PRIVATE
   # ${CU_OPS_EXAMPLES_COMMON_SOURCE_DIR})
 

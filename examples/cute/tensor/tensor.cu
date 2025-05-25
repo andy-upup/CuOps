@@ -69,6 +69,8 @@ TEST(Cute, HeapTensor) {
   // axpby: y = a * x + b * y
   auto tensor_x = make_tensor_like(tensor);
   auto tensor_y = make_tensor_like(tensor);
+  PRINT_TENSOR("tensor_x", tensor_x);
+  PRINT_TENSOR("tensor_y", tensor_y);
   fill(tensor_x, T(1.f));
   fill(tensor_y, T(1.f));
   T a = T(2.f);
