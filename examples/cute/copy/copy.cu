@@ -23,8 +23,11 @@ __global__ void copy_global_to_shm_to_register(const T* src_ptr) {
 
   // global to shared
   G2SCopy g2s_tiled_copy;
+  // through get_slice, we can get thr_copy for current thread
   auto g2s_thr_copy = g2s_tiled_copy.get_slice(idx);
+  // use partition_S/retile_S to represent source tensor
   auto tAgA = g2s_thr_copy.partition_S(gA);
+  // use partition_D/retile_D to represent destination tensor
   auto tAsA = g2s_thr_copy.partition_D(sA);
   cute::copy(g2s_tiled_copy, tAgA, tAsA);
 
